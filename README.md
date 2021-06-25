@@ -1,0 +1,2 @@
+# lru-registry
+`lru-registry` extends the functionality of [Distribution](github.com/distribution/distribution) to make a registry with a cleanup policy based on least recently used tags. The primary purpose of this `registry` is to provide caching.
