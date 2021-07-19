@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/boxboat/lru-registry/pkg/common"
@@ -24,8 +25,11 @@ import (
 	"github.com/regclient/regclient/regclient"
 	"github.com/regclient/regclient/regclient/types"
 	"golang.org/x/sys/unix"
+	"io"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"os/exec"
 	"regexp"
 	"time"
 )
@@ -35,16 +39,19 @@ var (
 )
 
 type Proxy struct {
-	Server        *http.Server
-	RegistryHost  string
-	RegistryProxy *httputil.ReverseProxy
-	Cache         *lru.Cache
-	RegClient     regclient.RegClient
-	CleanSettings CleanSettings
+	Server              *http.Server
+	UseForwardedHeaders bool
+	RegistryHost        string
+	RegistryProxy       *httputil.ReverseProxy
+	Cache               *lru.Cache
+	RegClient           regclient.RegClient
+	CleanSettings       CleanSettings
 }
 
 type CleanSettings struct {
+	RegistryBinary      string
 	RegistryDir         string
+	RegistryConfig      string
 	MaxUsage            float64
 	MinReserveUsage     float64
 	MinReserveGigs      uint64
@@ -53,6 +60,7 @@ type CleanSettings struct {
 
 func (proxy *Proxy) Proxy(res http.ResponseWriter, req *http.Request) {
 
+	common.Log.Debugf(`%s %s`, req.Method, req.URL)
 	if req.Method == http.MethodHead || req.Method == http.MethodPut {
 		if match := manifestMatch.MatchString(req.URL.Path); match {
 			matches := manifestMatch.FindStringSubmatch(req.URL.Path)
@@ -72,8 +80,18 @@ func (proxy *Proxy) Proxy(res http.ResponseWriter, req *http.Request) {
 			})
 		}
 	}
-	req.Host = req.URL.Host
-	req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+
+	if !proxy.UseForwardedHeaders {
+		req.Header.Del("x-forwarded-for")
+		req.Header.Del("x-forwarded-host")
+		req.Header.Del("x-forwarded-port")
+		req.Header.Del("x-real-ip")
+
+		req.Header.Set("X-Forwarded-Proto", req.URL.Scheme)
+		req.Header.Set("X-Forwarded-Host", req.Host)
+		req.Header.Set("X-Forwarded-Port", req.URL.Port())
+	}
+
 	proxy.RegistryProxy.ServeHTTP(res, req)
 
 }
@@ -84,7 +102,7 @@ func (proxy *Proxy) CleanCycle(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(5*time.Minute):
+		case <-time.After(5 * time.Minute):
 			if proxy.removeTags() {
 				lruImages := proxy.Cache.GetLruList()
 				common.Log.Infof("total tags: %d", len(lruImages))
@@ -107,13 +125,32 @@ func (proxy *Proxy) CleanCycle(ctx context.Context) {
 						break
 					}
 				}
-
-				/// TODO registry garbage-collect
-
+				err := proxy.registryGarbageCollect()
+				common.LogIfError(err)
 			}
 		}
 	}
 
+}
+
+func (proxy *Proxy) registryGarbageCollect() error {
+	gc := exec.Command(
+		proxy.CleanSettings.RegistryBinary,
+		"garbage-collect",
+		"--delete-untagged",
+		proxy.CleanSettings.RegistryConfig)
+
+	var combinedOutout bytes.Buffer
+	mw := io.MultiWriter(os.Stdout, &combinedOutout)
+	gc.Stdout = mw
+	gc.Stderr = mw
+
+	if err := gc.Run(); err != nil {
+		return err
+	}
+	fmt.Print(combinedOutout.String())
+
+	return nil
 }
 
 func (proxy *Proxy) removeTags() bool {

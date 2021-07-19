@@ -35,12 +35,14 @@ import (
 )
 
 type ProxyArgs struct {
-	serverPort     int
-	serverCert     string
-	serverKey      string
-	registryHost   string
-	registryScheme string
-	CleanupArgs    proxy.CleanSettings
+	serverPort          int
+	serverCert          string
+	serverKey           string
+	databaseDir         string
+	registryHost        string
+	registryScheme      string
+	CleanupArgs         proxy.CleanSettings
+	UseForwardedHeaders bool
 }
 
 var (
@@ -48,7 +50,7 @@ var (
 )
 
 func runProxy(ctx context.Context) {
-	db, err := bolt.Open("usage.db", 0600, nil)
+	db, err := bolt.Open(fmt.Sprintf("%s/%s", proxyArgs.databaseDir, "usage.db"), 0600, nil)
 	common.ExitIfError(err)
 	defer db.Close()
 
@@ -147,6 +149,24 @@ func init() {
 		"x509 server key")
 
 	startProxyCmd.Flags().StringVar(
+		&proxyArgs.databaseDir,
+		"db-dir",
+		"/var/lib/registry",
+		"db directory")
+
+	startProxyCmd.Flags().StringVar(
+		&proxyArgs.CleanupArgs.RegistryBinary,
+		"registry-bin",
+		"/registry/bin/registry",
+		"registry binary")
+
+	startProxyCmd.Flags().StringVar(
+		&proxyArgs.CleanupArgs.RegistryConfig,
+		"registry-conf",
+		"/etc/docker/registry/config.yml",
+		"registry config")
+
+	startProxyCmd.Flags().StringVar(
 		&proxyArgs.registryHost,
 		"registry-host",
 		"127.0.0.1:5000",
@@ -161,7 +181,7 @@ func init() {
 	startProxyCmd.Flags().StringVar(
 		&proxyArgs.CleanupArgs.RegistryDir,
 		"registry-dir",
-		"/registry-data",
+		"/var/lib/registry",
 		"registry directory")
 
 	startProxyCmd.Flags().Float64Var(
@@ -187,4 +207,10 @@ func init() {
 		"clean-tags-percentage",
 		10.0,
 		"clean percentage of least recently used tags")
+
+	startProxyCmd.Flags().BoolVar(
+		&proxyArgs.UseForwardedHeaders,
+		"use-forwarded-headers",
+		false,
+		"use x-forwarded headers")
 }

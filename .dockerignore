@@ -5,3 +5,4 @@
 /local-test
 /charts
 .idea
+*.db

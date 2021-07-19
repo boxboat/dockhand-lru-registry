@@ -101,7 +101,7 @@ func initConfig() {
 		viper.SetConfigName(".lru-registry")
 	}
 
-	viper.SetEnvPrefix("lru_registry")
+	viper.SetEnvPrefix("lru_")
 	replacer := strings.NewReplacer("-", "_")
 	viper.SetEnvKeyReplacer(replacer)
 	viper.AutomaticEnv() // read in environment variables that match
