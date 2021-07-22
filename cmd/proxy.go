@@ -20,18 +20,16 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/boxboat/lru-registry/pkg/common"
-	"github.com/boxboat/lru-registry/pkg/lru"
-	"github.com/boxboat/lru-registry/pkg/proxy"
+	"github.com/boxboat/dockhand-lru-registry/pkg/common"
+	"github.com/boxboat/dockhand-lru-registry/pkg/lru"
+	"github.com/boxboat/dockhand-lru-registry/pkg/proxy"
 	"github.com/regclient/regclient/regclient"
 	"github.com/spf13/cobra"
 	bolt "go.etcd.io/bbolt"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 type ProxyArgs struct {
@@ -49,7 +47,7 @@ var (
 	proxyArgs ProxyArgs
 )
 
-func runProxy(ctx context.Context) {
+func startProxy(ctx context.Context) {
 	db, err := bolt.Open(fmt.Sprintf("%s/%s", proxyArgs.databaseDir, "usage.db"), 0600, nil)
 	common.ExitIfError(err)
 	defer db.Close()
@@ -75,10 +73,9 @@ func runProxy(ctx context.Context) {
 					Name: proxyArgs.registryHost,
 					TLS:  tlsSetting,
 				})),
-		CleanSettings: proxyArgs.CleanupArgs,
+		CleanSettings:       proxyArgs.CleanupArgs,
+		UseForwardedHeaders: proxyArgs.UseForwardedHeaders,
 	}
-
-	registryProxy.Cache.Init()
 
 	if proxyArgs.serverCert != "" && proxyArgs.serverKey != "" {
 		tlsPair, err := tls.LoadX509KeyPair(proxyArgs.serverCert, proxyArgs.serverKey)
@@ -88,33 +85,8 @@ func runProxy(ctx context.Context) {
 		}
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", registryProxy.Proxy)
-	registryProxy.Server.Handler = mux
+	registryProxy.RunProxy(ctx)
 
-	go registryProxy.CleanCycle(ctx)
-
-	go func() {
-		if registryProxy.Server.TLSConfig != nil {
-			if err := registryProxy.Server.ListenAndServeTLS("", ""); err != nil {
-				common.ExitIfError(err)
-			}
-		} else {
-			if err := registryProxy.Server.ListenAndServe(); err != nil {
-				common.ExitIfError(err)
-			}
-		}
-	}()
-
-	// listen for shutdown signal
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	<-signalChan
-
-	common.Log.Infof("received shutdown signal, shutting down proxy")
-	if err := registryProxy.Server.Shutdown(context.Background()); err != nil {
-		common.Log.Infof("proxy shutdown: %v", err)
-	}
 }
 
 var startProxyCmd = &cobra.Command{
@@ -122,7 +94,23 @@ var startProxyCmd = &cobra.Command{
 	Short: "ci registry proxy",
 	Long:  `start the proxy with the provided settings`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runProxy(cmd.Context())
+		startProxy(cmd.Context())
+	},
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if proxyArgs.CleanupArgs.TargetUsagePercentage > 100 ||
+			proxyArgs.CleanupArgs.TargetUsagePercentage < 0 {
+			common.Log.Warnf("target-percentage invalid range - will be overridden")
+		}
+
+		if proxyArgs.CleanupArgs.CleanTagsPercentage > 100 ||
+			proxyArgs.CleanupArgs.CleanTagsPercentage < 0 {
+			common.Log.Warnf("clean-tags-percentage invalid range - will be overridden ")
+		}
+
+		proxyArgs.CleanupArgs.CleanTagsPercentage = math.Max(0, math.Min(proxyArgs.CleanupArgs.CleanTagsPercentage/100, 1.0))
+		proxyArgs.CleanupArgs.TargetUsagePercentage = math.Max(0, math.Min(proxyArgs.CleanupArgs.TargetUsagePercentage/100, 1.0))
+
+		return nil
 	},
 }
 
@@ -185,32 +173,32 @@ func init() {
 		"registry directory")
 
 	startProxyCmd.Flags().Float64Var(
-		&proxyArgs.CleanupArgs.MaxUsage,
-		"max-percentage",
-		.9,
-		"maximum usage of disk size")
-
-	startProxyCmd.Flags().Float64Var(
-		&proxyArgs.CleanupArgs.MinReserveUsage,
-		"min-percentage",
-		.5,
-		"minimum reserve of disk size")
-
-	startProxyCmd.Flags().Uint64Var(
-		&proxyArgs.CleanupArgs.MinReserveGigs,
-		"min-reserve-gigabytes",
-		20,
-		"maximum usage of disk size")
+		&proxyArgs.CleanupArgs.TargetUsagePercentage,
+		"target-percentage",
+		75.0,
+		"target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met")
 
 	startProxyCmd.Flags().Float64Var(
 		&proxyArgs.CleanupArgs.CleanTagsPercentage,
 		"clean-tags-percentage",
 		10.0,
-		"clean percentage of least recently used tags")
+		"percentage of least recently used tags to remove each iteration of a clean cycle until the target-percentage is achieved")
 
 	startProxyCmd.Flags().BoolVar(
 		&proxyArgs.UseForwardedHeaders,
 		"use-forwarded-headers",
 		false,
 		"use x-forwarded headers")
+
+	startProxyCmd.Flags().StringVar(
+		&proxyArgs.CleanupArgs.TimeZone,
+		"timezone",
+		"GMT",
+		"timezone string to use for scheduling based on the cron-string")
+
+	startProxyCmd.Flags().StringVar(
+		&proxyArgs.CleanupArgs.CronSchedule,
+		"cleanup-cron",
+		"0 0 * * *",
+		"cron schedule for cleaning up the least recently used tags default is 0:00:00")
 }

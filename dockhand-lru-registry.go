@@ -16,7 +16,7 @@ limitations under the License.
 
 package main
 
-import "github.com/boxboat/lru-registry/cmd"
+import "github.com/boxboat/dockhand-lru-registry/cmd"
 
 // Version of webhook defined by Makefile.
 var Version = "undefined"

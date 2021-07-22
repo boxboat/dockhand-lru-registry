@@ -18,7 +18,7 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/boxboat/lru-registry/pkg/common"
+	"github.com/boxboat/dockhand-lru-registry/pkg/common"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"

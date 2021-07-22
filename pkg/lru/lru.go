@@ -18,7 +18,7 @@ package lru
 
 import (
 	"fmt"
-	"github.com/boxboat/lru-registry/pkg/common"
+	"github.com/boxboat/dockhand-lru-registry/pkg/common"
 	bolt "go.etcd.io/bbolt"
 	"strings"
 	"time"
