@@ -140,6 +140,7 @@ func (proxy *Proxy) runGarbageCollection(ctx context.Context){
 }
 
 func (proxy *Proxy) cleanup(ctx context.Context) {
+	proxy.runGarbageCollection(ctx)
 	if proxy.removeTags() {
 		for proxy.removeTags() {
 			lruImages := proxy.Cache.GetLruList()
@@ -165,8 +166,6 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 			}
 			proxy.runGarbageCollection(ctx)
 		}
-	} else {
-		proxy.runGarbageCollection(ctx)
 	}
 }
 
