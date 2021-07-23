@@ -27,7 +27,6 @@ import (
 	"github.com/regclient/regclient/regclient/types"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/sys/unix"
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -129,62 +128,63 @@ func (proxy *Proxy) serveProxy(res http.ResponseWriter, req *http.Request) {
 	proxy.RegistryProxy.ServeHTTP(res, req)
 }
 
-func (proxy *Proxy) runGarbageCollection(ctx context.Context){
+func (proxy *Proxy) runGarbageCollection(ctx context.Context) {
 	if err := proxy.MaintenanceSemaphore.Acquire(ctx, writers); err != nil {
 		common.Log.Warnf("unable to acquire lock skipping garbage collection: %v", err)
 		return
 	}
 	defer proxy.MaintenanceSemaphore.Release(writers)
-	err := proxy.executeGarbageCollection()
+	err := proxy.executeGarbageCollection(ctx)
 	common.LogIfError(err)
 }
 
 func (proxy *Proxy) cleanup(ctx context.Context) {
 	proxy.runGarbageCollection(ctx)
-	if proxy.removeTags() {
-		for proxy.removeTags() {
-			lruImages := proxy.Cache.GetLruList()
-			common.Log.Infof("total tags: %d", len(lruImages))
-			removalTags := int(float64(len(lruImages)) * proxy.CleanSettings.CleanTagsPercentage)
-			common.Log.Infof("Removing %d tags", removalTags)
+	for proxy.removeTags() {
+		lruImages := proxy.Cache.GetLruList()
+		common.Log.Infof("total tags: %d", len(lruImages))
+		removalTags := int(float64(len(lruImages)) * proxy.CleanSettings.CleanTagsPercentage)
+		common.Log.Infof("Removing %d tags", removalTags)
 
-			for idx, image := range lruImages {
-				if idx < removalTags {
-					if ref, err := types.NewRef(image.CanonicalName(proxy.RegistryHost)); err == nil {
-						common.Log.Infof("Removing %s", ref.CommonName())
-						if err = proxy.RegClient.TagDelete(context.Background(), ref); err == nil {
-							proxy.Cache.Remove(&image)
-						} else {
-							common.LogIfError(err)
-						}
+		for idx, image := range lruImages {
+			if idx < removalTags {
+				if ref, err := types.NewRef(image.CanonicalName(proxy.RegistryHost)); err == nil {
+					common.Log.Infof("Removing %s", ref.CommonName())
+					if err = proxy.RegClient.TagDelete(ctx, ref); err == nil {
+						proxy.Cache.Remove(&image)
 					} else {
+						/// TODO check to see if a 404 and remove from DB if so
+
 						common.LogIfError(err)
 					}
 				} else {
-					break
+					common.LogIfError(err)
 				}
+			} else {
+				break
 			}
-			proxy.runGarbageCollection(ctx)
 		}
+		proxy.runGarbageCollection(ctx)
 	}
 }
 
-func (proxy *Proxy) executeGarbageCollection() error {
-	gc := exec.Command(
+func (proxy *Proxy) executeGarbageCollection(ctx context.Context) error {
+	gc := exec.CommandContext(
+		ctx,
 		proxy.CleanSettings.RegistryBinary,
 		"garbage-collect",
 		"--delete-untagged",
 		proxy.CleanSettings.RegistryConfig)
 
-	var combinedOutout bytes.Buffer
-	mw := io.MultiWriter(os.Stdout, &combinedOutout)
-	gc.Stdout = mw
-	gc.Stderr = mw
+	var combinedOutput bytes.Buffer
+	gc.Stdout = &combinedOutput
+	gc.Stderr = &combinedOutput
 
 	if err := gc.Run(); err != nil {
+		common.Log.Warnf("gc: %s", combinedOutput.String())
 		return err
 	}
-	fmt.Print(combinedOutout.String())
+	common.Log.Infof("gc: %s", combinedOutput.String())
 
 	return nil
 }
@@ -218,6 +218,8 @@ func (proxy *Proxy) listenAndServe() {
 }
 
 func (proxy *Proxy) RunProxy(ctx context.Context) {
+	proxyCtx, cancel := context.WithCancel(ctx)
+
 	proxy.MaintenanceSemaphore = semaphore.NewWeighted(writers)
 	location, err := time.LoadLocation(proxy.CleanSettings.TimeZone)
 	if err != nil {
@@ -225,7 +227,7 @@ func (proxy *Proxy) RunProxy(ctx context.Context) {
 		location = time.UTC
 	}
 	proxy.MaintenanceScheduler = gocron.NewScheduler(location)
-	proxy.MaintenanceScheduler.Cron(proxy.CleanSettings.CronSchedule).SingletonMode().Do(func() { proxy.cleanup(ctx) })
+	proxy.MaintenanceScheduler.Cron(proxy.CleanSettings.CronSchedule).SingletonMode().Do(func() { proxy.cleanup(proxyCtx) })
 	proxy.MaintenanceScheduler.StartAsync()
 
 	mux := http.NewServeMux()
@@ -233,7 +235,8 @@ func (proxy *Proxy) RunProxy(ctx context.Context) {
 	mux.HandleFunc("/healthz", proxy.healthz)
 	proxy.Server.Handler = mux
 
-	proxy.Cache.Init()
+	err = proxy.Cache.Init()
+	common.ExitIfError(err)
 
 	go proxy.listenAndServe()
 
@@ -241,9 +244,9 @@ func (proxy *Proxy) RunProxy(ctx context.Context) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	<-signalChan
+	cancel()
 	common.Log.Infof("received shutdown signal, shutting down proxy")
 	if err := proxy.Server.Shutdown(context.Background()); err != nil {
 		common.Log.Infof("proxy shutdown: %v", err)
 	}
-
 }

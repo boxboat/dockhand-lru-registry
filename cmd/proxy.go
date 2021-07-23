@@ -196,7 +196,7 @@ func init() {
 	startProxyCmd.Flags().StringVar(
 		&proxyArgs.CleanupArgs.TimeZone,
 		"timezone",
-		"GMT",
+		"Local",
 		"timezone string to use for scheduling based on the cron-string")
 
 	startProxyCmd.Flags().StringVar(
