@@ -25,6 +25,7 @@ import (
 	"github.com/boxboat/dockhand-lru-registry/pkg/proxy"
 	"github.com/regclient/regclient/regclient"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	bolt "go.etcd.io/bbolt"
 	"math"
 	"net/http"
@@ -96,7 +97,7 @@ var startProxyCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		startProxy(cmd.Context())
 	},
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if proxyArgs.CleanupArgs.TargetUsagePercentage > 100 ||
 			proxyArgs.CleanupArgs.TargetUsagePercentage < 0 {
 			common.Log.Warnf("target-percentage invalid range - will be overridden")
@@ -109,6 +110,8 @@ var startProxyCmd = &cobra.Command{
 
 		proxyArgs.CleanupArgs.CleanTagsPercentage = math.Max(0, math.Min(proxyArgs.CleanupArgs.CleanTagsPercentage/100, 1.0))
 		proxyArgs.CleanupArgs.TargetUsagePercentage = math.Max(0, math.Min(proxyArgs.CleanupArgs.TargetUsagePercentage/100, 1.0))
+
+		common.Log.Debugf("proxy settings %v", proxyArgs)
 
 		return nil
 	},
@@ -201,4 +204,6 @@ func init() {
 		"cleanup-cron",
 		"0 0 * * *",
 		"cron schedule for cleaning up the least recently used tags default is 0:00:00")
+
+	_ = viper.BindPFlags(startProxyCmd.Flags())
 }

@@ -135,7 +135,7 @@ func (proxy *Proxy) runGarbageCollection(ctx context.Context){
 		return
 	}
 	defer proxy.MaintenanceSemaphore.Release(writers)
-	err := proxy.registryGarbageCollect()
+	err := proxy.executeGarbageCollection()
 	common.LogIfError(err)
 }
 
@@ -170,7 +170,7 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 	}
 }
 
-func (proxy *Proxy) registryGarbageCollect() error {
+func (proxy *Proxy) executeGarbageCollection() error {
 	gc := exec.Command(
 		proxy.CleanSettings.RegistryBinary,
 		"garbage-collect",

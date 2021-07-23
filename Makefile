@@ -1,7 +1,7 @@
 comma := ,
 space := $(subst ,, )
 
-BINARY ?= lru-ci-registry-proxy
+BINARY ?= dockhand-lru-registry
 VERSION ?= develop
 REGISTRY ?= docker.io
 DOCKER_TARGET ?= release
