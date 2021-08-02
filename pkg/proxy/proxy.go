@@ -19,11 +19,13 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/boxboat/dockhand-lru-registry/pkg/common"
 	"github.com/boxboat/dockhand-lru-registry/pkg/lru"
 	"github.com/go-co-op/gocron"
 	"github.com/regclient/regclient/regclient"
+	"github.com/regclient/regclient/regclient/manifest"
 	"github.com/regclient/regclient/regclient/types"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/sys/unix"
@@ -32,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"syscall"
 	"time"
@@ -58,13 +61,14 @@ type Proxy struct {
 }
 
 type CleanSettings struct {
-	RegistryBinary        string
-	RegistryDir           string
-	RegistryConfig        string
-	TargetUsagePercentage float64
-	CleanTagsPercentage   float64
-	TimeZone              string
-	CronSchedule          string
+	RegistryBinary              string
+	RegistryDir                 string
+	RegistryConfig              string
+	TargetUsageBytes            uint64
+	CleanTagsPercentage         float64
+	TimeZone                    string
+	CronSchedule                string
+	UseOptimizedDiskCalculation bool
 }
 
 func (proxy *Proxy) healthz(res http.ResponseWriter, _ *http.Request) {
@@ -139,6 +143,11 @@ func (proxy *Proxy) runGarbageCollection(ctx context.Context) {
 }
 
 func (proxy *Proxy) cleanup(ctx context.Context) {
+	common.Log.Debugf(
+		"executing scheduled cleanup based on TZ=%s '%s'",
+		proxy.CleanSettings.TimeZone,
+		proxy.CleanSettings.CronSchedule)
+
 	proxy.runGarbageCollection(ctx)
 	for proxy.removeTags() {
 		lruImages := proxy.Cache.GetLruList()
@@ -152,10 +161,13 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 					common.Log.Infof("Removing %s", ref.CommonName())
 					if err = proxy.RegClient.TagDelete(ctx, ref); err == nil {
 						proxy.Cache.Remove(&image)
+					} else if errors.Is(err, manifest.ErrNotFound) {
+						proxy.Cache.Remove(&image)
 					} else {
-						/// TODO check to see if a 404 and remove from DB if so
-
 						common.LogIfError(err)
+						if _, err := proxy.RegClient.ManifestGet(ctx, ref); err != nil && errors.Is(err, manifest.ErrNotFound) {
+							proxy.Cache.Remove(&image)
+						}
 					}
 				} else {
 					common.LogIfError(err)
@@ -190,19 +202,46 @@ func (proxy *Proxy) executeGarbageCollection(ctx context.Context) error {
 }
 
 func (proxy *Proxy) removeTags() bool {
+	var usedBytes uint64 = 0
+	var err error = nil
+	if proxy.CleanSettings.UseOptimizedDiskCalculation {
+		usedBytes, err = sizeOfDisk(proxy.CleanSettings.RegistryDir)
+	} else {
+		usedBytes, err = sizeOfDir(proxy.CleanSettings.RegistryDir)
+	}
+	common.LogIfError(err)
+
+	common.Log.Debugf("registry using %d bytes", usedBytes)
+	common.Log.Debugf("registry target %d bytes", proxy.CleanSettings.TargetUsageBytes)
+
+	return usedBytes > proxy.CleanSettings.TargetUsageBytes
+}
+
+func sizeOfDisk(path string )(uint64, error){
 	var stat unix.Statfs_t
-	if err := unix.Statfs(proxy.CleanSettings.RegistryDir, &stat); err != nil {
+	if err := unix.Statfs(path, &stat); err != nil {
 		common.LogIfError(err)
-		return false
+		return 0, err
 	}
 
-	free := (float64(stat.Bavail) / float64(stat.Blocks)) * 100.0
-	usage := 100.0 - free
-	common.Log.Infof("%s using %f of disk", proxy.CleanSettings.RegistryDir, usage)
-	remainingGi := (stat.Bavail * uint64(stat.Bsize) / 1024) / 1024 / 1024
-	common.Log.Infof("Remaining %d Gi", remainingGi)
+	usedBytes := (stat.Blocks * uint64(stat.Bsize)) - (stat.Bavail * uint64(stat.Bsize))
+	return usedBytes, nil
+}
 
-	return usage > proxy.CleanSettings.TargetUsagePercentage
+
+func sizeOfDir(path string) (uint64, error) {
+	var size int64 = 0
+
+	readSize := func(path string, file os.FileInfo, err error) error {
+		if !file.IsDir() {
+			size += file.Size()
+		}
+		return nil
+	}
+
+	err := filepath.Walk(path, readSize)
+
+	return uint64(size), err
 }
 
 func (proxy *Proxy) listenAndServe() {

@@ -34,14 +34,15 @@ import (
 )
 
 type ProxyArgs struct {
-	serverPort          int
-	serverCert          string
-	serverKey           string
-	databaseDir         string
-	registryHost        string
-	registryScheme      string
-	CleanupArgs         proxy.CleanSettings
-	UseForwardedHeaders bool
+	serverPort                  int
+	serverCert                  string
+	serverKey                   string
+	databaseDir                 string
+	registryHost                string
+	registryScheme              string
+	CleanupArgs                 proxy.CleanSettings
+	TargetDiskSizeByteString    string
+	UseForwardedHeaders         bool
 }
 
 var (
@@ -98,20 +99,19 @@ var startProxyCmd = &cobra.Command{
 		startProxy(cmd.Context())
 	},
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if proxyArgs.CleanupArgs.TargetUsagePercentage > 100 ||
-			proxyArgs.CleanupArgs.TargetUsagePercentage < 0 {
-			common.Log.Warnf("target-percentage invalid range - will be overridden")
-		}
 
 		if proxyArgs.CleanupArgs.CleanTagsPercentage > 100 ||
 			proxyArgs.CleanupArgs.CleanTagsPercentage < 0 {
 			common.Log.Warnf("clean-tags-percentage invalid range - will be overridden ")
 		}
-
 		proxyArgs.CleanupArgs.CleanTagsPercentage = math.Max(0, math.Min(proxyArgs.CleanupArgs.CleanTagsPercentage/100, 1.0))
-		proxyArgs.CleanupArgs.TargetUsagePercentage = math.Max(0, math.Min(proxyArgs.CleanupArgs.TargetUsagePercentage/100, 1.0))
 
-		common.Log.Debugf("proxy settings %v", proxyArgs)
+		if bytes, err := common.ParseByteString(proxyArgs.TargetDiskSizeByteString); err == nil {
+			common.Log.Debugf("target usage bytes: %d", bytes)
+			proxyArgs.CleanupArgs.TargetUsageBytes = bytes
+		} else {
+			common.ExitIfError(err)
+		}
 
 		return nil
 	},
@@ -175,10 +175,10 @@ func init() {
 		"/var/lib/registry",
 		"registry directory")
 
-	startProxyCmd.Flags().Float64Var(
-		&proxyArgs.CleanupArgs.TargetUsagePercentage,
-		"target-percentage",
-		75.0,
+	startProxyCmd.Flags().StringVar(
+		&proxyArgs.TargetDiskSizeByteString,
+		"target-byte-usage",
+		"50Gi",
 		"target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met")
 
 	startProxyCmd.Flags().Float64Var(
@@ -192,6 +192,12 @@ func init() {
 		"use-forwarded-headers",
 		false,
 		"use x-forwarded headers")
+
+	startProxyCmd.Flags().BoolVar(
+		&proxyArgs.CleanupArgs.UseOptimizedDiskCalculation,
+		"separate-disk",
+		false,
+		"registry on separate disk or mount - use optimized disk size calculation")
 
 	startProxyCmd.Flags().StringVar(
 		&proxyArgs.CleanupArgs.TimeZone,

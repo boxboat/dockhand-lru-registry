@@ -17,13 +17,28 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"strconv"
+	"strings"
 )
 
 var (
 	// Log for global use
 	Log = log.New()
+)
+
+const (
+	// GiB - GibiByte size
+	GiB       = 1024 * 1024 * 1024
+	GiBSuffix = "Gi"
+	// MiB - MebiByte size
+	MiB       = 1024 * 1024
+	MiBSuffix = "Mi"
+	// KiB - KibiByte size
+	KiB       = 1024
+	KiBSuffix = "Ki"
 )
 
 // ExitIfError will generically handle an error by logging its contents
@@ -39,4 +54,32 @@ func LogIfError(err error) {
 	if err != nil {
 		Log.Warnf("%v", err)
 	}
+}
+
+func ParseByteString(b string) (uint64, error) {
+	var bytes uint64 = 0
+
+	if strings.HasSuffix(b, GiBSuffix) {
+		if raw, err := strconv.Atoi(strings.ReplaceAll(b, GiBSuffix, "")); err == nil {
+			bytes = uint64(raw) * GiB
+		} else {
+			return bytes, err
+		}
+	} else if strings.HasSuffix(b, MiBSuffix) {
+		if raw, err := strconv.Atoi(strings.ReplaceAll(b, MiBSuffix, "")); err == nil {
+			bytes = uint64(raw) * MiB
+		} else {
+			return bytes, err
+		}
+	} else if strings.HasSuffix(b, KiBSuffix) {
+		if raw, err := strconv.Atoi(strings.ReplaceAll(b, KiBSuffix, "")); err == nil {
+			bytes = uint64(raw) * KiB
+		} else {
+			return bytes, err
+		}
+	} else {
+		return bytes, fmt.Errorf("no valid suffix, must be Gi, Mi or Ki")
+	}
+
+	return bytes, nil
 }
