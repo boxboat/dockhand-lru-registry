@@ -224,10 +224,9 @@ func sizeOfDisk(path string )(uint64, error){
 		return 0, err
 	}
 
-	usedBytes := (stat.Blocks * uint64(stat.Bsize)) - (stat.Bavail * uint64(stat.Bsize))
+	usedBytes := (stat.Blocks * uint64(stat.Bsize)) - (stat.Bfree * uint64(stat.Bsize))
 	return usedBytes, nil
 }
-
 
 func sizeOfDir(path string) (uint64, error) {
 	var size int64 = 0
