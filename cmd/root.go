@@ -50,7 +50,7 @@ func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:               "lru-registry",
+	Use:               "dockhand-lru-registry",
 	Short:             "ci registry proxy",
 	Long:              `ci registry proxy to provide LRU cache to a docker build cache registry`,
 	PersistentPreRunE: rootCmdPersistentPreRunE,

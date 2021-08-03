@@ -17,7 +17,7 @@ dockhand-lru-registry start --help
 start the proxy with the provided settings
 
 Usage:
-  lru-registry start [flags]
+  dockhand-lru-registry start [flags]
 
 Flags:
       --cert string                   x509 server certificate
