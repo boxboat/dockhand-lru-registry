@@ -26,7 +26,7 @@ Flags:
       --db-dir string                 db directory (default "/var/lib/registry")
   -h, --help                          help for start
       --key string                    x509 server key
-      --port int                       (default 443)
+      --port int                       (default 3000)
       --registry-bin string           registry binary (default "/registry/bin/registry")
       --registry-conf string          registry config (default "/etc/docker/registry/config.yml")
       --registry-dir string           registry directory (default "/var/lib/registry")

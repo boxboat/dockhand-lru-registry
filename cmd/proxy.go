@@ -124,7 +124,7 @@ func init() {
 	startProxyCmd.Flags().IntVar(
 		&proxyArgs.serverPort,
 		"port",
-		443,
+		3000,
 		"")
 
 	startProxyCmd.Flags().StringVar(
