@@ -1,5 +1,5 @@
 # dockhand-lru-registry
-`dockhand-lru-registry` acts as proxy to [Distribution](github.com/distribution/distribution) to make a registry with a 
+`dockhand-lru-registry` acts as proxy to [Distribution](https://github.com/distribution/distribution) to make a registry with a 
 cleanup policy based on least recently used tags. The registry keeps track of push/pull operations, monitors disk 
 utilization and runs the registry garbage collector on a configurable schedule. When the registry exceeds the target disk 
 utilization, a configurable percentage of the least recently used tags will be removed until disk utilization drops back
@@ -10,7 +10,7 @@ Garbage Collection can be scheduled and will turn the registry into read only mo
 while garbage collection is occurring.
 
 ## Usage
-See [dockhand-charts](github.com/boxboat/dockhand-charts) for Kubernetes installation. 
+See [dockhand-charts](https://github.com/boxboat/dockhand-charts) for Kubernetes installation. 
 
 ```shell
 dockhand-lru-registry start --help
