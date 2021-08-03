@@ -177,7 +177,7 @@ func init() {
 
 	startProxyCmd.Flags().StringVar(
 		&proxyArgs.TargetDiskSizeByteString,
-		"target-byte-usage",
+		"target-disk-usage",
 		"50Gi",
 		"target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met")
 

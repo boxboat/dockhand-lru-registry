@@ -33,7 +33,7 @@ Flags:
       --registry-host string          registry host (default "127.0.0.1:5000")
       --registry-scheme string        registry scheme (default "http")
       --separate-disk                 registry on separate disk or mount - use optimized disk size calculation
-      --target-byte-usage string      target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met (default "50Gi")
+      --target-disk-usage string      target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met (default "50Gi")
       --timezone string               timezone string to use for scheduling based on the cron-string (default "Local")
       --use-forwarded-headers         use x-forwarded headers
 
