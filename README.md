@@ -13,30 +13,31 @@ while garbage collection is occurring.
 See [dockhand-charts](github.com/boxboat/dockhand-charts) for Kubernetes installation. 
 
 ```shell
-./bin/dockhand-lru-registry start --help
+dockhand-lru-registry start --help
 start the proxy with the provided settings
 
 Usage:
-lru-registry start [flags]
+  lru-registry start [flags]
 
 Flags:
---cert string                   x509 server certificate
---clean-tags-percentage float   percentage of least recently used tags to remove each iteration of a clean cycle until the target-percentage is achieved (default 10)
---cleanup-cron string           cron schedule for cleaning up the least recently used tags default is 0:00:00 (default "0 0 * * *")
---db-dir string                 db directory (default "/var/lib/registry")
--h, --help                          help for start
---key string                    x509 server key
---port int                       (default 443)
---registry-bin string           registry binary (default "/registry/bin/registry")
---registry-conf string          registry config (default "/etc/docker/registry/config.yml")
---registry-dir string           registry directory (default "/var/lib/registry")
---registry-host string          registry host (default "127.0.0.1:5000")
---registry-scheme string        registry scheme (default "http")
---target-percentage float       target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met (default 75)
---timezone string               timezone string to use for scheduling based on the cron-string (default "GMT")
---use-forwarded-headers         use x-forwarded headers
+      --cert string                   x509 server certificate
+      --clean-tags-percentage float   percentage of least recently used tags to remove each iteration of a clean cycle until the target-percentage is achieved (default 10)
+      --cleanup-cron string           cron schedule for cleaning up the least recently used tags default is 0:00:00 (default "0 0 * * *")
+      --db-dir string                 db directory (default "/var/lib/registry")
+  -h, --help                          help for start
+      --key string                    x509 server key
+      --port int                       (default 443)
+      --registry-bin string           registry binary (default "/registry/bin/registry")
+      --registry-conf string          registry config (default "/etc/docker/registry/config.yml")
+      --registry-dir string           registry directory (default "/var/lib/registry")
+      --registry-host string          registry host (default "127.0.0.1:5000")
+      --registry-scheme string        registry scheme (default "http")
+      --separate-disk                 registry on separate disk or mount - use optimized disk size calculation
+      --target-byte-usage string      target usage of disk for a clean cycle, a scheduled clean cycle will clean tags until this threshold is met (default "50Gi")
+      --timezone string               timezone string to use for scheduling based on the cron-string (default "Local")
+      --use-forwarded-headers         use x-forwarded headers
 
 Global Flags:
---config string   config file (default is $HOME/.lru-registry.yaml)
---debug           debug output
+      --config string   config file (default is $HOME/.lru-registry.yaml)
+      --debug           debug output
 ```
