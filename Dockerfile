@@ -14,14 +14,8 @@ ARG VERSION
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} VERSION=${VERSION} make build
 ENTRYPOINT [ "/src/bin/dockhand-lru-registry" ]
 
-FROM --platform=${TARGETPLATFORM} golang:${GO_VERSION}-alpine as release
+FROM --platform=${TARGETPLATFORM} gcr.io/distroless/static as release
 
 COPY --from=build /etc/passwd /etc/group /etc/
 COPY --from=build /src/bin/dockhand-lru-registry /bin/dockhand-lru-registry
 ENTRYPOINT [ "/bin/dockhand-lru-registry" ]
-
-#FROM --platform=${TARGETPLATFORM} gcr.io/distroless/static as release
-#
-#COPY --from=build /etc/passwd /etc/group /etc/
-#COPY --from=build /src/bin/dockhand-lru-registry /bin/dockhand-lru-registry
-#ENTRYPOINT [ "/bin/dockhand-lru-registry" ]
