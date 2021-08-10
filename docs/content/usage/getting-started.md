@@ -27,7 +27,7 @@ helm install --namespace dockhand-lru-registry dockhand/dockhand-lru-registry
 
 ### Helm Chart
 
-### default `values.yaml` 
+#### default `values.yaml` 
 ```yaml
 registry:
   image:
