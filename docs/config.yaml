@@ -1,0 +1,5 @@
+---
+baseURL: https://lru-registry.dockhand.dev/
+languageCode: en-us
+title: dockhand-lru-registry
+theme: hugo-geekdocs
