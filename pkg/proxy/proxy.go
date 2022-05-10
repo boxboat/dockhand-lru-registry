@@ -21,14 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/boxboat/dockhand-lru-registry/pkg/common"
-	"github.com/boxboat/dockhand-lru-registry/pkg/lru"
-	"github.com/go-co-op/gocron"
-	"github.com/regclient/regclient/regclient"
-	"github.com/regclient/regclient/regclient/manifest"
-	"github.com/regclient/regclient/regclient/types"
-	"golang.org/x/sync/semaphore"
-	"golang.org/x/sys/unix"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -38,6 +30,15 @@ import (
 	"regexp"
 	"syscall"
 	"time"
+
+	"github.com/boxboat/dockhand-lru-registry/pkg/common"
+	"github.com/boxboat/dockhand-lru-registry/pkg/lru"
+	"github.com/go-co-op/gocron"
+	"github.com/regclient/regclient"
+	"github.com/regclient/regclient/types"
+	"github.com/regclient/regclient/types/ref"
+	"golang.org/x/sync/semaphore"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -54,7 +55,7 @@ type Proxy struct {
 	RegistryHost         string
 	RegistryProxy        *httputil.ReverseProxy
 	Cache                *lru.Cache
-	RegClient            regclient.RegClient
+	RegClient            *regclient.RegClient
 	CleanSettings        CleanSettings
 	MaintenanceSemaphore *semaphore.Weighted
 	MaintenanceScheduler *gocron.Scheduler
@@ -157,15 +158,15 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 
 		for idx, image := range lruImages {
 			if idx < removalTags {
-				if ref, err := types.NewRef(image.CanonicalName(proxy.RegistryHost)); err == nil {
+				if ref, err := ref.New(image.CanonicalName(proxy.RegistryHost)); err == nil {
 					common.Log.Infof("Removing %s", ref.CommonName())
 					if err = proxy.RegClient.TagDelete(ctx, ref); err == nil {
 						proxy.Cache.Remove(&image)
-					} else if errors.Is(err, manifest.ErrNotFound) {
+					} else if errors.Is(err, types.ErrNotFound) {
 						proxy.Cache.Remove(&image)
 					} else {
 						common.LogIfError(err)
-						if _, err := proxy.RegClient.ManifestGet(ctx, ref); err != nil && errors.Is(err, manifest.ErrNotFound) {
+						if _, err := proxy.RegClient.ManifestGet(ctx, ref); err != nil && errors.Is(err, types.ErrNotFound) {
 							proxy.Cache.Remove(&image)
 						}
 					}
@@ -217,7 +218,7 @@ func (proxy *Proxy) removeTags() bool {
 	return usedBytes > proxy.CleanSettings.TargetUsageBytes
 }
 
-func sizeOfDisk(path string )(uint64, error){
+func sizeOfDisk(path string) (uint64, error) {
 	var stat unix.Statfs_t
 	if err := unix.Statfs(path, &stat); err != nil {
 		common.LogIfError(err)
