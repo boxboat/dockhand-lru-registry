@@ -20,29 +20,31 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/boxboat/dockhand-lru-registry/pkg/common"
-	"github.com/boxboat/dockhand-lru-registry/pkg/lru"
-	"github.com/boxboat/dockhand-lru-registry/pkg/proxy"
-	"github.com/regclient/regclient/regclient"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	bolt "go.etcd.io/bbolt"
 	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"github.com/boxboat/dockhand-lru-registry/pkg/common"
+	"github.com/boxboat/dockhand-lru-registry/pkg/lru"
+	"github.com/boxboat/dockhand-lru-registry/pkg/proxy"
+	"github.com/regclient/regclient"
+	"github.com/regclient/regclient/config"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	bolt "go.etcd.io/bbolt"
 )
 
 type ProxyArgs struct {
-	serverPort                  int
-	serverCert                  string
-	serverKey                   string
-	databaseDir                 string
-	registryHost                string
-	registryScheme              string
-	CleanupArgs                 proxy.CleanSettings
-	TargetDiskSizeByteString    string
-	UseForwardedHeaders         bool
+	serverPort               int
+	serverCert               string
+	serverKey                string
+	databaseDir              string
+	registryHost             string
+	registryScheme           string
+	CleanupArgs              proxy.CleanSettings
+	TargetDiskSizeByteString string
+	UseForwardedHeaders      bool
 }
 
 var (
@@ -57,9 +59,9 @@ func startProxy(ctx context.Context) {
 	registryTarget, err := url.Parse(fmt.Sprintf("%s://%s", proxyArgs.registryScheme, proxyArgs.registryHost))
 	common.ExitIfError(err)
 
-	tlsSetting := regclient.TLSDisabled
+	tlsSetting := config.TLSDisabled
 	if proxyArgs.registryScheme == "https" {
-		tlsSetting = regclient.TLSEnabled
+		tlsSetting = config.TLSEnabled
 	}
 
 	registryProxy := &proxy.Proxy{
@@ -69,9 +71,9 @@ func startProxy(ctx context.Context) {
 		RegistryHost:  proxyArgs.registryHost,
 		RegistryProxy: httputil.NewSingleHostReverseProxy(registryTarget),
 		Cache:         &lru.Cache{Db: db},
-		RegClient: regclient.NewRegClient(
+		RegClient: regclient.New(
 			regclient.WithConfigHost(
-				regclient.ConfigHost{
+				config.Host{
 					Name: proxyArgs.registryHost,
 					TLS:  tlsSetting,
 				})),
