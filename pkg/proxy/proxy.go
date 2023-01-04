@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -150,11 +151,14 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 		proxy.CleanSettings.CronSchedule)
 
 	proxy.runGarbageCollection(ctx)
-	for proxy.removeTags() {
+	remove, _ := proxy.shouldRemoveTags()
+	iteration := 0
+
+	for remove {
 		lruImages := proxy.Cache.GetLruList()
 		common.Log.Infof("total tags: %d", len(lruImages))
-		removalTags := int(float64(len(lruImages)) * proxy.CleanSettings.CleanTagsPercentage)
-		common.Log.Infof("Removing %d tags", removalTags)
+		removalTags := int(math.Max(math.Round(float64(len(lruImages))*proxy.CleanSettings.CleanTagsPercentage), math.Min(float64(iteration), 1)))
+		common.Log.Infof("iteration %d: removing %d tags", iteration, removalTags)
 
 		for idx, image := range lruImages {
 			if idx < removalTags {
@@ -178,6 +182,15 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 			}
 		}
 		proxy.runGarbageCollection(ctx)
+		tryAgain, currentBytes := proxy.shouldRemoveTags()
+		if tryAgain && (len(lruImages)-removalTags) <= 0 {
+			// we have reached a state where we can't remove anymore tags
+			remove = false
+			common.Log.Warnf("unable to reach regisry target %d bytes  - exiting cleanup with %d bytes", proxy.CleanSettings.TargetUsageBytes, currentBytes)
+		} else {
+			remove = tryAgain
+		}
+		iteration++
 	}
 }
 
@@ -202,7 +215,7 @@ func (proxy *Proxy) executeGarbageCollection(ctx context.Context) error {
 	return nil
 }
 
-func (proxy *Proxy) removeTags() bool {
+func (proxy *Proxy) shouldRemoveTags() (bool, uint64) {
 	var usedBytes uint64 = 0
 	var err error = nil
 	if proxy.CleanSettings.UseOptimizedDiskCalculation {
@@ -215,7 +228,7 @@ func (proxy *Proxy) removeTags() bool {
 	common.Log.Debugf("registry using %d bytes", usedBytes)
 	common.Log.Debugf("registry target %d bytes", proxy.CleanSettings.TargetUsageBytes)
 
-	return usedBytes > proxy.CleanSettings.TargetUsageBytes
+	return usedBytes > proxy.CleanSettings.TargetUsageBytes, usedBytes
 }
 
 func sizeOfDisk(path string) (uint64, error) {
