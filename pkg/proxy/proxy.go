@@ -157,7 +157,9 @@ func (proxy *Proxy) cleanup(ctx context.Context) {
 	for remove {
 		lruImages := proxy.Cache.GetLruList()
 		common.Log.Infof("total tags: %d", len(lruImages))
-		removalTags := int(math.Max(math.Round(float64(len(lruImages))*proxy.CleanSettings.CleanTagsPercentage), math.Min(float64(iteration), 1)))
+		minTagRemoval := math.Min(float64(iteration), 1)
+		percentageTagRemoval := math.Round(float64(len(lruImages)) * proxy.CleanSettings.CleanTagsPercentage)
+		removalTags := int(math.Max(percentageTagRemoval, minTagRemoval))
 		common.Log.Infof("iteration %d: removing %d tags", iteration, removalTags)
 
 		for idx, image := range lruImages {
