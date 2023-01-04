@@ -1,5 +1,5 @@
 ARG VERSION=develop
-ARG GO_VERSION=1.16.4
+ARG GO_VERSION=1.19.4
 
 FROM --platform=${BUILDPLATFORM} golang:${GO_VERSION}-alpine as build
 
