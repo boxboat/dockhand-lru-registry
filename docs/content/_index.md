@@ -9,7 +9,7 @@ geekdocAnchor: false
 <!-- markdownlint-capture -->
 <!-- markdownlint-disable MD033 -->
 
-<span class="badge-placeholder">[![Build Status](https://img.shields.io/github/workflow/status/boxboat/dockhand-lru-registry/docker)](https://github.com/boxboat/dockhand-lru-registry)</span>
+<span class="badge-placeholder">[![Build Status](https://img.shields.io/github/actions/workflow/status/boxboat/dockhand-lru-registry/docker.yaml?master)](https://github.com/boxboat/dockhand-lru-registry)</span>
 <span class="badge-placeholder">[![GitHub release](https://img.shields.io/github/v/release/boxboat/dockhand-lru-registry)](https://github.com/boxboat/dockhand-lru-registry/releases/latest)</span>
 <span class="badge-placeholder">[![GitHub contributors](https://img.shields.io/github/contributors/boxboat/dockhand-lru-registry)](https://github.com/boxboat/dockhand-lru-registry/graphs/contributors)</span>
 <span class="badge-placeholder">[![License: APACHE](https://img.shields.io/github/license/boxboat/dockhand-lru-registry)](https://github.com/boxboat/dockhand-lru-registry/blob/main/LICENSE)</span>
