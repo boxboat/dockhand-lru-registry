@@ -1,0 +1,13 @@
+apiVersion: v1
+entries:
+  dockhand-lru-registry:
+  - apiVersion: v2
+    created: "2024-05-07T19:14:45.885233504Z"
+    description: LRU Registry
+    digest: a6d902f07801386e07da5894eb51f2282bdb40537b1465209c2e6469e1f21aa0
+    name: dockhand-lru-registry
+    type: application
+    urls:
+    - https://github.com/boxboat/dockhand-lru-registry/releases/download/dockhand-lru-registry-0.2.1/dockhand-lru-registry-0.2.1.tgz
+    version: 0.2.1
+generated: "2024-05-07T19:14:45.885239786Z"
