@@ -1,0 +1,93 @@
+registry:
+  image:
+      repository: registry
+      pullPolicy: IfNotPresent
+      tag: 2.7.1
+  conf: |
+    version: 0.1
+    log:
+      fields:
+        service: registry
+    storage:
+      delete:
+        enabled: true
+      cache:
+        blobdescriptor: inmemory
+      filesystem:
+        rootdirectory: /var/lib/registry
+    http:
+      addr: :5000
+      headers:
+        X-Content-Type-Options: [nosniff]
+    health:
+      storagedriver:
+        enabled: true
+        interval: 10s
+        threshold: 3
+  cache:
+    enabled: true
+    persistence:
+      # set to hostPath, emptyDir or pvc
+      type: pvc
+      pvc:
+        #storageClass: "-"
+        accessMode: ReadWriteOnce
+        size: 100Gi
+      hostPath: {}
+        # path: /mnt/dir
+        # type: DirectoryOrCreate
+      emptyDir: {}
+        #sizeLimit: 20Gi
+
+proxy:
+  debug: false
+  port: 3000
+  cleanSettings:
+    targetDiskUsage: 80Gi
+    cleanTagPercentage: 10.0
+    cron: "0 2 * * *"
+    timezone: "Local"
+    # set this to true if the registry isn't sharing a disk
+    useSeparateDiskCalculation: false
+  image:
+    repository: boxboat/dockhand-lru-registry
+    pullPolicy: IfNotPresent
+    tag: v0.1.0
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: lru-registry.example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "dockhand-lru-registry.name" . }}
+  labels:
+    {{- include "dockhand-lru-registry.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "dockhand-lru-registry.name" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "dockhand-lru-registry.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dockhand-lru-registry.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config-maps: {{ (tpl (.Values.registry.conf) .) | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: init-registry-proxy
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.registry.image.repository }}:{{ .Values.registry.image.tag }}"
+          imagePullPolicy: {{ .Values.registry.image.pullPolicy }}
+          command:
+            - cp
+            - /bin/registry
+            - /registry/bin/registry
+          args:
+          volumeMounts:
+            - name: registry-bin
+              mountPath: /registry/bin
+      containers:
+        - name: cache-lru-proxy
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          args:
+            - start
+            - --use-forwarded-headers
+            - --target-disk-usage
+            - {{ .Values.proxy.cleanSettings.targetDiskUsage | quote}}
+            - --clean-tags-percentage
+            - {{ .Values.proxy.cleanSettings.cleanTagPercentage | quote}}
+            - --registry-dir
+            - /var/lib/registry
+            - --timezone
+            - {{ .Values.proxy.cleanSettings.timezone | quote }}
+            - --cleanup-cron
+            - {{ .Values.proxy.cleanSettings.cron | quote }}
+            - --registry-host
+            - 127.0.0.1:5000
+            - --port
+            - {{ .Values.proxy.port | quote }}
+            {{- if .Values.proxy.cleanSettings.useSeparateDiskCalculation }}
+            - --separate-disk
+            {{- end }}
+            {{- if .Values.proxy.debug }}
+            - --debug
+            {{- end }}
+          ports:
+            - name: cache
+              containerPort: {{ .Values.proxy.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: registry-bin
+              mountPath: /registry/bin
+            - name: conf
+              mountPath: /etc/docker/registry/config.yml
+              subPath: config.yml
+            - name: registry-cache
+              mountPath: /var/lib/registry
+        - name: registry
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.registry.image.repository }}:{{ .Values.registry.image.tag }}"
+          imagePullPolicy: {{ .Values.registry.image.pullPolicy }}
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/docker/registry/config.yml
+              subPath: config.yml
+            - name: registry-cache
+              mountPath: /var/lib/registry
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: registry-bin
+          emptyDir: {}
+        - name: conf
+          configMap:
+            name: {{ include "dockhand-lru-registry.name" . }}-conf
+            items:
+              - key: registry-config.yaml
+                path: config.yml
+        {{- if eq .Values.registry.cache.persistence.type "emptyDir" }}
+        - name: registry-cache
+          {{- if .Values.registry.cache.persistence.emptyDir }}
+          emptyDir:
+            {{- toYaml .Values.registry.cache.persistence.emptyDir | nindent 12 }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- if eq .Values.registry.cache.persistence.type "hostPath" }}
+        - name: registry-cache
+          hostPath:
+            {{- toYaml .Values.registry.cache.persistence.hostPath | nindent 12 }}
+        {{- end }}
+  {{- if eq .Values.registry.cache.persistence.type "pvc" }}
+  volumeClaimTemplates:
+    - metadata:
+        name: registry-cache
+      spec:
+        {{- if .Values.registry.cache.persistence.pvc.storageClass }}
+        storageClassName: {{ .Values.registry.cache.persistence.pvc.storageClass }}
+        {{- end }}
+        accessModes:
+          - {{ .Values.registry.cache.persistence.pvc.accessMode }}
+        resources:
+          requests:
+            storage: {{ .Values.registry.cache.persistence.pvc.size | quote }}
+  {{- end }}
