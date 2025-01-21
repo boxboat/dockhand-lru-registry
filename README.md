@@ -10,7 +10,7 @@ Garbage Collection can be scheduled and will turn the registry into read only mo
 while garbage collection is occurring.
 
 ## Usage
-See [dockhand-charts](https://github.com/boxboat/dockhand-charts) for Kubernetes installation. 
+See [charts](./charts/dockhand-lru-registry) for Kubernetes installation. 
 
 ```shell
 dockhand-lru-registry start --help
